@@ -3,6 +3,9 @@ from django.db import models
 # Create your models here.
 class Item(models.Model):
     name = models.CharField(max_length = 120)
+    brand = models.CharField(max_length = 80, blank = True)
+    upc = models.CharField(max_length = 32, blank = True)
+    store_item_id = models.CharField(max_length = 64, blank = True)
     unit = models.CharField(max_length = 24, help_text = "e.g., lb, gal, oz")
     category = models.CharField(max_length = 64)
     unit_size_std = models.FloatField(help_text = "standard size in base unit specified")
