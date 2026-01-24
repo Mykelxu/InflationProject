@@ -138,6 +138,29 @@ async function fetchProduct(accessToken: string, locationId: string, term: strin
   };
 }
 
+async function fetchWithRetry(
+  accessToken: string,
+  locationId: string,
+  term: string,
+  attempts = 3
+) {
+  let lastError: Error | null = null;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const product = await fetchProduct(accessToken, locationId, term);
+      return product;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("Unknown error");
+      const message = lastError.message;
+      if (!message.includes("503") && !message.includes("429")) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 600 * (i + 1)));
+    }
+  }
+  throw lastError ?? new Error("Product fetch failed");
+}
+
 Deno.serve(async (request) => {
   const ingestSecret = Deno.env.get("INGEST_SECRET");
   const provided = request.headers.get("x-ingest-secret");
@@ -192,107 +215,153 @@ Deno.serve(async (request) => {
     let basketCount = 0;
 
     for (const staple of stapleItems) {
-      const product = await fetchProduct(token.access_token, locationId, staple.term);
-      if (!product) {
+      try {
+        const product = await fetchWithRetry(
+          token.access_token,
+          locationId,
+          staple.term
+        );
+        if (!product) {
+          if (debug) {
+            debugRows.push({
+              term: staple.term,
+              found: false,
+              priced: false,
+              priceCents: null,
+            });
+          }
+          await supabase.from("IngestLog").insert({
+            id: createId(),
+            capturedAt,
+            term: staple.term,
+            status: "no_product",
+            message: "No product returned",
+            locationId,
+            storeName,
+            source: "kroger",
+          });
+          continue;
+        }
+
+        const { data: existingItems, error: selectError } = await supabase
+          .from("Item")
+          .select("id")
+          .eq("name", staple.label)
+          .eq("unit", staple.unit)
+          .limit(1);
+
+        if (selectError) {
+          throw new Error(`Item select failed: ${selectError.message}`);
+        }
+
+        let itemId: string | null = existingItems?.[0]?.id ?? null;
+
+        if (itemId) {
+          const { error: updateError } = await supabase
+            .from("Item")
+            .update({
+              isTracked: true,
+              searchTerm: staple.term,
+              category: staple.category,
+            })
+            .eq("id", itemId);
+          if (updateError) {
+            throw new Error(`Item update failed: ${updateError.message}`);
+          }
+        } else {
+          const { data: inserted, error: insertError } = await supabase
+            .from("Item")
+            .insert({
+              id: createId(),
+              name: staple.label,
+              category: staple.category,
+              unit: staple.unit,
+              isTracked: true,
+              searchTerm: staple.term,
+            })
+            .select("id")
+            .single();
+          if (insertError) {
+            throw new Error(`Item insert failed: ${insertError.message}`);
+          }
+          itemId = inserted?.id ?? null;
+
+          if (!itemId) {
+            const { data: fallbackItems, error: fallbackError } = await supabase
+              .from("Item")
+              .select("id")
+              .eq("name", staple.label)
+              .eq("unit", staple.unit)
+              .limit(1);
+            if (fallbackError) {
+              throw new Error(
+                `Item fallback select failed: ${fallbackError.message}`
+              );
+            }
+            itemId = fallbackItems?.[0]?.id ?? null;
+          }
+        }
+
         if (debug) {
           debugRows.push({
             term: staple.term,
-            found: false,
-            priced: false,
-            priceCents: null,
+            found: true,
+            priced: product.priceCents !== null,
+            priceCents: product.priceCents,
           });
         }
-        continue;
-      }
 
-      const { data: existingItems, error: selectError } = await supabase
-        .from("Item")
-        .select("id")
-        .eq("name", staple.label)
-        .eq("unit", staple.unit)
-        .limit(1);
+        if (itemId && product.priceCents !== null) {
+          basketTotal += product.priceCents;
+          basketCount += 1;
 
-      if (selectError) {
-        throw new Error(`Item select failed: ${selectError.message}`);
-      }
-
-      let itemId: string | null = existingItems?.[0]?.id ?? null;
-
-      if (itemId) {
-        const { error: updateError } = await supabase
-          .from("Item")
-          .update({
-            isTracked: true,
-            searchTerm: staple.term,
-            category: staple.category,
-          })
-          .eq("id", itemId);
-        if (updateError) {
-          throw new Error(`Item update failed: ${updateError.message}`);
-        }
-      } else {
-        const { data: inserted, error: insertError } = await supabase
-          .from("Item")
-          .insert({
-            id: createId(),
-            name: staple.label,
-            category: staple.category,
-            unit: staple.unit,
-            isTracked: true,
-            searchTerm: staple.term,
-          })
-          .select("id")
-          .single();
-        if (insertError) {
-          throw new Error(`Item insert failed: ${insertError.message}`);
-        }
-        itemId = inserted?.id ?? null;
-
-        if (!itemId) {
-          const { data: fallbackItems, error: fallbackError } = await supabase
-            .from("Item")
-            .select("id")
-            .eq("name", staple.label)
-            .eq("unit", staple.unit)
-            .limit(1);
-          if (fallbackError) {
-            throw new Error(`Item fallback select failed: ${fallbackError.message}`);
+          const { error: snapshotError } = await supabase
+            .from("PriceSnapshot")
+            .insert({
+              id: createId(),
+              itemId,
+              locationId,
+              storeName,
+              priceCents: product.priceCents,
+              currency: product.currency,
+              capturedAt,
+              source: "kroger",
+              rawJson: {
+                locationLabel,
+                term: staple.term,
+                kroger: product.raw,
+              },
+            });
+          if (snapshotError) {
+            throw new Error(
+              `PriceSnapshot insert failed: ${snapshotError.message}`
+            );
           }
-          itemId = fallbackItems?.[0]?.id ?? null;
         }
-      }
 
-      if (debug) {
-        debugRows.push({
-          term: staple.term,
-          found: true,
-          priced: product.priceCents !== null,
-          priceCents: product.priceCents,
-        });
-      }
-
-      if (itemId && product.priceCents !== null) {
-        basketTotal += product.priceCents;
-        basketCount += 1;
-
-        const { error: snapshotError } = await supabase.from("PriceSnapshot").insert({
+        await supabase.from("IngestLog").insert({
           id: createId(),
-          itemId,
+          capturedAt,
+          term: staple.term,
+          status: product.priceCents !== null ? "ok" : "no_price",
+          message: product.priceCents !== null ? "Inserted" : "No price",
+          priceCents: product.priceCents,
           locationId,
           storeName,
-          priceCents: product.priceCents,
-          currency: product.currency,
-          capturedAt,
           source: "kroger",
-          rawJson: {
-            locationLabel,
-            term: staple.term,
-            kroger: product.raw,
-          },
         });
-        if (snapshotError) {
-          throw new Error(`PriceSnapshot insert failed: ${snapshotError.message}`);
-        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        await supabase.from("IngestLog").insert({
+          id: createId(),
+          capturedAt,
+          term: staple.term,
+          status: "error",
+          message,
+          locationId,
+          storeName,
+          source: "kroger",
+        });
       }
     }
 

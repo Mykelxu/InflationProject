@@ -20,7 +20,7 @@ type PriceChartProps = {
 
 export function PriceChart({ data }: PriceChartProps) {
   return (
-    <div className="h-72 w-full rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)] p-4">
+    <div className="depth-ring glass-card lift-card h-72 w-full rounded-2xl p-4">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 24, left: -6, bottom: 8 }}>
           <XAxis dataKey="label" stroke="#6c6258" fontSize={12} />

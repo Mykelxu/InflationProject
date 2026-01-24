@@ -73,14 +73,18 @@ export default async function InsightsPage() {
   return (
     <div className="min-h-screen px-6 py-12">
       <div className="mx-auto max-w-6xl">
-        <header className="flex flex-wrap items-center justify-between gap-4">
+        <header className="flex flex-wrap items-end justify-between gap-6 animate-rise">
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-[color:var(--muted)]">
               Insights
             </p>
-            <h1 className="mt-2 text-3xl font-semibold text-[color:var(--ink)] sm:text-4xl">
-              What&apos;s moving your basket.
+            <h1 className="mt-2 text-4xl font-semibold text-[color:var(--ink)] sm:text-5xl">
+              Signals from your grocery basket.
             </h1>
+            <p className="mt-4 max-w-2xl text-sm text-[color:var(--muted)]">
+              Track what is rising fastest, which items are stabilizing, and how
+              today&apos;s basket compares to the last month.
+            </p>
           </div>
           <Link
             href="/dashboard"
@@ -90,53 +94,73 @@ export default async function InsightsPage() {
           </Link>
         </header>
 
-        <section className="mt-10 grid gap-6 md:grid-cols-3">
-          <div className="rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)] p-6">
+        <section className="mt-12 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] animate-rise">
+          <div className="glass-card lift-card shine rounded-3xl p-8">
             <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
               Latest basket
             </p>
-            <p className="mt-3 text-2xl font-semibold text-[color:var(--ink)]">
+            <p className="mt-4 text-4xl font-semibold text-[color:var(--ink)]">
               {latestBasket
                 ? formatCurrency(latestBasket.totalCents, latestBasket.currency)
                 : "n/a"}
             </p>
-            <p className="mt-2 text-sm text-[color:var(--muted)]">
+            <p className="mt-3 text-sm text-[color:var(--muted)]">
               {latestBasket ? latestBasket.storeName : "No snapshots yet"}
             </p>
+            <div className="mt-6 flex flex-wrap gap-4 text-xs text-[color:var(--muted)]">
+              <span className="rounded-full border border-[color:var(--ring)] px-3 py-1">
+                Tracked items: {trackedItems.length}
+              </span>
+              <span className="rounded-full border border-[color:var(--ring)] px-3 py-1">
+                30-day window
+              </span>
+            </div>
           </div>
-          <div className="rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)] p-6">
-            <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
-              Tracked items
-            </p>
-            <p className="mt-3 text-2xl font-semibold text-[color:var(--ink)]">
-              {trackedItems.length}
-            </p>
-            <p className="mt-2 text-sm text-[color:var(--muted)]">
-              30-day rolling history
-            </p>
-          </div>
-          <div className="rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)] p-6">
-            <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
-              Biggest movers
-            </p>
-            <p className="mt-3 text-2xl font-semibold text-[color:var(--ink)]">
-              {movers.length}
-            </p>
-            <p className="mt-2 text-sm text-[color:var(--muted)]">
-              Items with largest 30d change
-            </p>
+          <div className="grid gap-4">
+            {[
+              {
+                label: "Biggest movers",
+                value: movers.length,
+                caption: "Largest absolute change",
+              },
+              {
+                label: "Coverage",
+                value: trackedItems.length,
+                caption: "Staples in CPI basket",
+              },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="glass-card lift-card shine rounded-3xl p-6"
+              >
+                <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                  {stat.label}
+                </p>
+                <p className="mt-3 text-3xl font-semibold text-[color:var(--ink)]">
+                  {stat.value}
+                </p>
+                <p className="mt-2 text-sm text-[color:var(--muted)]">
+                  {stat.caption}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
-        <section className="mt-12">
-          <h2 className="text-lg font-semibold text-[color:var(--ink)]">
-            Movers (30-day change)
-          </h2>
+        <section className="mt-14 animate-rise">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h2 className="text-lg font-semibold text-[color:var(--ink)]">
+              Movers (30-day change)
+            </h2>
+            <span className="text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
+              Absolute change
+            </span>
+          </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {movers.map((item) => (
               <div
                 key={item!.id}
-                className="rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)] p-5"
+                className="glass-card lift-card shine rounded-2xl p-5"
               >
                 <div className="flex items-center justify-between">
                   <div>

@@ -9,6 +9,8 @@
   --accent-soft: #f1c3a8;
   --sea: #2d6f67;
   --ring: #eadcc8;
+  --shadow-soft: 0 18px 40px rgba(31, 27, 22, 0.12);
+  --shadow-card: 0 10px 24px rgba(31, 27, 22, 0.12);
 }
 
 body {
@@ -26,4 +28,79 @@ h3 {
 
 ::selection {
   background: var(--accent-soft);
+}
+@keyframes rise {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.6s ease-out both;
+}
+
+.glass-card {
+  background: linear-gradient(160deg, rgba(255, 250, 244, 0.92), rgba(255, 255, 255, 0.8));
+  border: 1px solid rgba(234, 220, 200, 0.9);
+  box-shadow: 0 14px 34px rgba(31, 27, 22, 0.16);
+  backdrop-filter: blur(3px);
+}
+
+.lift-card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  will-change: transform, box-shadow;
+}
+
+.lift-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 22px 50px rgba(31, 27, 22, 0.18);
+}
+
+.glass-card:hover {
+  backdrop-filter: blur(1px);
+}
+
+.depth-ring {
+  position: relative;
+}
+
+.depth-ring::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: inherit;
+  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.6), transparent 65%);
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.lift-card:hover.depth-ring::before {
+  opacity: 0.12;
+}
+
+.depth-ring > * {
+  position: relative;
+  z-index: 1;
+}
+
+.shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.shine::after {
+  content: "";
+  position: absolute;
+  inset: -60% auto auto -30%;
+  width: 140%;
+  height: 140%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.6), transparent 60%);
+  opacity: 0.25;
+  pointer-events: none;
 }

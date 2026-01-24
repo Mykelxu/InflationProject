@@ -104,11 +104,18 @@ export default async function DashboardPage() {
 
   const itemStats = new Map<
     string,
-    { lastPrice: number | null; delta7: number | null; delta30: number | null }
+    {
+      lastPrice: number | null;
+      delta7: number | null;
+      delta30: number | null;
+      minPrice: number | null;
+      maxPrice: number | null;
+    }
   >();
   const now = new Date();
   const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(now.getDate() - 7);
+  const allPrices: number[] = [];
 
   for (const item of trackedItems) {
     const series = snapshotsByItem[item.id] ?? [];
@@ -128,8 +135,40 @@ export default async function DashboardPage() {
         ? lastPrice - sevenDay.priceCents / 100
         : null;
 
-    itemStats.set(item.id, { lastPrice, delta7, delta30 });
+    const seriesPrices = series.map((snap) => snap.priceCents / 100);
+    const minPrice = seriesPrices.length ? Math.min(...seriesPrices) : null;
+    const maxPrice = seriesPrices.length ? Math.max(...seriesPrices) : null;
+
+    for (const price of seriesPrices) {
+      allPrices.push(price);
+    }
+
+    itemStats.set(item.id, { lastPrice, delta7, delta30, minPrice, maxPrice });
   }
+
+  const buildAxis = (seriesPrices: number[]) => {
+    if (seriesPrices.length === 0) {
+      return { domain: undefined, ticks: undefined };
+    }
+    const sorted = [...seriesPrices].sort((a, b) => a - b);
+    const mid = sorted[Math.floor(sorted.length / 2)];
+    const min = sorted[0];
+    const max = sorted[sorted.length - 1];
+    const spread = Math.max(mid - min, max - mid);
+    const paddedSpread = Math.max(1, spread * 1.2);
+    const span = Math.max(1, paddedSpread * 2);
+    const step = Math.max(1, Math.ceil(span / 4));
+    let domainMin = Math.floor((mid - paddedSpread) / step) * step;
+    let domainMax = Math.ceil((mid + paddedSpread) / step) * step;
+    if (domainMax === domainMin) {
+      domainMax = domainMin + step;
+    }
+    const ticks: number[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      ticks.push(domainMin + step * i);
+    }
+    return { domain: [domainMin, domainMax] as [number, number], ticks };
+  };
 
   const snapshots = await prisma.priceSnapshot.findMany({
     orderBy: { capturedAt: "desc" },
@@ -142,7 +181,7 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen px-6 py-12">
       <div className="mx-auto max-w-6xl">
-        <header className="flex flex-wrap items-center justify-between gap-4">
+        <header className="flex flex-wrap items-center justify-between gap-4 animate-rise">
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-[color:var(--muted)]">
               Dashboard
@@ -171,7 +210,7 @@ export default async function DashboardPage() {
               <PriceChart data={basketChartData} />
             </div>
           </div>
-          <div className="rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)] p-6">
+          <div className="glass-card lift-card rounded-2xl p-6">
             <h3 className="text-lg font-semibold text-[color:var(--ink)]">
               Basket selector
             </h3>
@@ -204,16 +243,17 @@ export default async function DashboardPage() {
             <p className="mt-2 text-sm text-[color:var(--muted)]">
               Daily snapshots for the 20 CPI-style staples.
             </p>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
               {trackedItems.map((item) => {
                 const points =
                   snapshotsByItem[item.id]?.map((snapshot) => ({
-                  label: snapshot.capturedAt.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  }),
-                  value: snapshot.priceCents / 100,
+                    label: snapshot.capturedAt.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    }),
+                    value: snapshot.priceCents / 100,
                 })) ?? [];
+                const axis = buildAxis(points.map((point) => point.value));
 
                 return (
                   <ItemTrendCard
@@ -224,6 +264,10 @@ export default async function DashboardPage() {
                     lastPrice={itemStats.get(item.id)?.lastPrice ?? null}
                     delta7={itemStats.get(item.id)?.delta7 ?? null}
                     delta30={itemStats.get(item.id)?.delta30 ?? null}
+                    minPrice={itemStats.get(item.id)?.minPrice ?? null}
+                    maxPrice={itemStats.get(item.id)?.maxPrice ?? null}
+                    yDomain={axis.domain}
+                    yTicks={axis.ticks}
                   />
                 );
               })}
@@ -241,7 +285,7 @@ export default async function DashboardPage() {
               {snapshots.length > 0 ? "Live data" : "Mock data"}
             </span>
           </div>
-          <div className="mt-4 overflow-hidden rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)]">
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)] shadow-sm">
             <table className="w-full text-left text-sm">
               <thead className="bg-[color:var(--ring)]/40 text-xs uppercase tracking-[0.15em] text-[color:var(--muted)]">
                 <tr>

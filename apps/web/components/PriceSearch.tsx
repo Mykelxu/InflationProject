@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { formatCurrency } from "@/lib/format";
 
-type SearchResult = {
+type SearchItem = {
   term: string;
   name: string;
   unit: string;
@@ -12,6 +12,14 @@ type SearchResult = {
   priceCents: number | null;
   currency: string;
   imageUrl?: string | null;
+};
+
+type SearchResult = {
+  term: string;
+  locationId: string;
+  storeName: string;
+  locationLabel: string;
+  results: SearchItem[];
 };
 
 export function PriceSearch() {
@@ -45,7 +53,7 @@ export function PriceSearch() {
   };
 
   return (
-    <div className="rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)] p-6">
+    <div className="glass-card lift-card shine rounded-2xl p-6">
       <h3 className="text-lg font-semibold text-[color:var(--ink)]">
         Live price search
       </h3>
@@ -74,30 +82,37 @@ export function PriceSearch() {
       )}
 
       {result && (
-        <div className="mt-4 rounded-xl border border-[color:var(--ring)] bg-white p-4">
-          <div className="flex items-start gap-3">
-            {result.imageUrl && (
-              <img
-                src={result.imageUrl}
-                alt={result.name}
-                className="h-14 w-14 rounded-lg object-cover"
-              />
-            )}
-            <div>
-              <p className="text-sm font-semibold text-[color:var(--ink)]">
-                {result.name}
+        <div className="mt-4 space-y-3">
+          {result.results.map((item) => (
+            <div
+              key={`${item.name}-${item.unit}`}
+              className="rounded-xl border border-[color:var(--ring)] bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-start gap-3">
+                {item.imageUrl && (
+                  <img
+                    src={item.imageUrl}
+                    alt={item.name}
+                    className="h-14 w-14 rounded-lg object-cover"
+                  />
+                )}
+                <div>
+                  <p className="text-sm font-semibold text-[color:var(--ink)]">
+                    {item.name}
+                  </p>
+                  <p className="text-xs text-[color:var(--muted)]">
+                    {item.storeName} · {item.locationLabel}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-2 text-lg font-semibold text-[color:var(--sea)]">
+                {item.priceCents !== null
+                  ? formatCurrency(item.priceCents, item.currency)
+                  : "Price unavailable"}
               </p>
-              <p className="text-xs text-[color:var(--muted)]">
-                {result.storeName} · {result.locationLabel}
-              </p>
+              <p className="text-xs text-[color:var(--muted)]">{item.unit}</p>
             </div>
-          </div>
-          <p className="mt-2 text-lg font-semibold text-[color:var(--sea)]">
-            {result.priceCents !== null
-              ? formatCurrency(result.priceCents, result.currency)
-              : "Price unavailable"}
-          </p>
-          <p className="text-xs text-[color:var(--muted)]">{result.unit}</p>
+          ))}
         </div>
       )}
     </div>

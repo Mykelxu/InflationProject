@@ -65,3 +65,18 @@ model CpiBasketSnapshot {
   @@index([capturedAt])
   @@index([locationId, capturedAt])
 }
+
+model IngestLog {
+  id         String   @id @default(cuid())
+  capturedAt DateTime @default(now())
+  term       String
+  status     String
+  message    String?
+  priceCents Int?
+  locationId String
+  storeName  String
+  source     String?
+
+  @@index([capturedAt])
+  @@index([term, capturedAt])
+}

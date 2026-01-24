@@ -21,6 +21,10 @@ type ItemTrendCardProps = {
   lastPrice?: number | null;
   delta7?: number | null;
   delta30?: number | null;
+  yDomain?: [number, number];
+  minPrice?: number | null;
+  maxPrice?: number | null;
+  yTicks?: number[];
 };
 
 function formatDelta(delta?: number | null) {
@@ -38,9 +42,13 @@ export function ItemTrendCard({
   lastPrice,
   delta7,
   delta30,
+  yDomain,
+  minPrice,
+  maxPrice,
+  yTicks,
 }: ItemTrendCardProps) {
   return (
-    <div className="rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)] p-4">
+    <div className="depth-ring glass-card lift-card shine rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)] p-4">
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-base font-semibold text-[color:var(--ink)]">
@@ -68,11 +76,20 @@ export function ItemTrendCard({
           No history yet.
         </p>
       ) : (
-        <div className="mt-3 h-32">
+        <div className="mt-4 h-40">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 5, right: 12, left: -10, bottom: 0 }}>
+            <LineChart data={data} margin={{ top: 5, right: 12, left: 6, bottom: 0 }}>
               <XAxis dataKey="label" hide />
-              <YAxis hide />
+              <YAxis
+                domain={yDomain ?? ["auto", "auto"]}
+                ticks={yTicks}
+                width={44}
+                tick={{ fontSize: 10, fill: "#6c6258" }}
+                axisLine={false}
+                tickLine={false}
+                tickMargin={6}
+                allowDecimals={false}
+              />
               <Tooltip
                 contentStyle={{
                   borderRadius: 10,
@@ -91,6 +108,13 @@ export function ItemTrendCard({
               />
             </LineChart>
           </ResponsiveContainer>
+        </div>
+      )}
+      {yTicks && yTicks.length > 0 && (
+        <div className="mt-3 flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-[color:var(--muted)]">
+          <span>${yTicks[0]?.toFixed(0)}</span>
+          <span>${yTicks[Math.floor(yTicks.length / 2)]?.toFixed(0)}</span>
+          <span>${yTicks[yTicks.length - 1]?.toFixed(0)}</span>
         </div>
       )}
     </div>

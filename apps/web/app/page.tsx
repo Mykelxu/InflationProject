@@ -6,7 +6,7 @@ export default function Home() {
       <div className="pointer-events-none absolute -top-32 right-0 h-72 w-72 rounded-full bg-[rgba(213,93,58,0.18)] blur-3xl" />
       <div className="pointer-events-none absolute bottom-0 left-10 h-64 w-64 rounded-full bg-[rgba(45,111,103,0.18)] blur-3xl" />
 
-      <main className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-20">
+      <main className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-20 animate-rise">
         <div className="max-w-3xl">
           <p className="text-sm uppercase tracking-[0.2em] text-[color:var(--muted)]">
             Grocery Inflation Tracker
@@ -58,7 +58,7 @@ export default function Home() {
           ].map((card) => (
             <div
               key={card.title}
-              className="rounded-2xl border border-[color:var(--ring)] bg-[color:var(--surface)] p-6 shadow-sm"
+              className="glass-card lift-card shine rounded-2xl p-6"
             >
               <h3 className="text-xl font-semibold text-[color:var(--ink)]">
                 {card.title}
