@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
   const accessToken = await getKrogerAccessToken();
 
-  let locationId = parsed.data.locationId || process.env.KROGER_LOCATION_ID;
+  const locationId = parsed.data.locationId || process.env.KROGER_LOCATION_ID;
   let storeName = "Kroger";
   let locationLabel = "unknown";
 
@@ -63,9 +63,10 @@ export async function POST(request: Request) {
         lat,
         lon,
       });
-      locationId = location.locationId;
+      const resolvedLocationId = location.locationId;
       storeName = location.name;
       locationLabel = location.address ?? "nearby";
+      return runIngest(resolvedLocationId, storeName, locationLabel, accessToken);
     } catch (error) {
       return NextResponse.json(
         {
@@ -75,7 +76,15 @@ export async function POST(request: Request) {
       );
     }
   }
+  return runIngest(locationId, storeName, locationLabel, accessToken);
+}
 
+async function runIngest(
+  locationId: string,
+  storeName: string,
+  locationLabel: string,
+  accessToken: { access_token: string }
+) {
   const capturedAt = new Date();
   let basketTotal = 0;
   let basketCount = 0;
