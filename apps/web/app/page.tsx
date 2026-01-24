@@ -27,6 +27,12 @@ export default function Home() {
               Go to Dashboard
             </Link>
             <Link
+              href="/insights"
+              className="inline-flex items-center justify-center rounded-full border border-[color:var(--ring)] bg-[color:var(--surface)] px-6 py-3 text-sm font-semibold text-[color:var(--ink)] transition hover:-translate-y-0.5"
+            >
+              View Insights
+            </Link>
+            <Link
               href="/api/health"
               className="inline-flex items-center justify-center rounded-full border border-[color:var(--ring)] bg-[color:var(--surface)] px-6 py-3 text-sm font-semibold text-[color:var(--ink)] transition hover:-translate-y-0.5"
             >

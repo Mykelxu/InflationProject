@@ -8,6 +8,7 @@ node_modules/
 # Env
 .env
 .env.*
+!.env.example
 
 # Prisma
 prisma/dev.db

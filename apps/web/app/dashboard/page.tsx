@@ -102,6 +102,35 @@ export default async function DashboardPage() {
     snapshotsByItem[snapshot.itemId]?.push(snapshot);
   }
 
+  const itemStats = new Map<
+    string,
+    { lastPrice: number | null; delta7: number | null; delta30: number | null }
+  >();
+  const now = new Date();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
+
+  for (const item of trackedItems) {
+    const series = snapshotsByItem[item.id] ?? [];
+    if (series.length === 0) {
+      itemStats.set(item.id, { lastPrice: null, delta7: null, delta30: null });
+      continue;
+    }
+    const last = series[series.length - 1];
+    const first = series[0];
+    const sevenDay = series.find((snap) => snap.capturedAt >= sevenDaysAgo);
+
+    const lastPrice = last.priceCents / 100;
+    const delta30 =
+      first.priceCents > 0 ? lastPrice - first.priceCents / 100 : null;
+    const delta7 =
+      sevenDay && sevenDay.priceCents > 0
+        ? lastPrice - sevenDay.priceCents / 100
+        : null;
+
+    itemStats.set(item.id, { lastPrice, delta7, delta30 });
+  }
+
   const snapshots = await prisma.priceSnapshot.findMany({
     orderBy: { capturedAt: "desc" },
     take: 6,
@@ -192,6 +221,9 @@ export default async function DashboardPage() {
                     title={item.name}
                     unit={item.unit}
                     data={points}
+                    lastPrice={itemStats.get(item.id)?.lastPrice ?? null}
+                    delta7={itemStats.get(item.id)?.delta7 ?? null}
+                    delta30={itemStats.get(item.id)?.delta30 ?? null}
                   />
                 );
               })}

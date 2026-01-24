@@ -11,6 +11,7 @@ type SearchResult = {
   locationLabel: string;
   priceCents: number | null;
   currency: string;
+  imageUrl?: string | null;
 };
 
 export function PriceSearch() {
@@ -74,12 +75,23 @@ export function PriceSearch() {
 
       {result && (
         <div className="mt-4 rounded-xl border border-[color:var(--ring)] bg-white p-4">
-          <p className="text-sm font-semibold text-[color:var(--ink)]">
-            {result.name}
-          </p>
-          <p className="text-xs text-[color:var(--muted)]">
-            {result.storeName} ? {result.locationLabel}
-          </p>
+          <div className="flex items-start gap-3">
+            {result.imageUrl && (
+              <img
+                src={result.imageUrl}
+                alt={result.name}
+                className="h-14 w-14 rounded-lg object-cover"
+              />
+            )}
+            <div>
+              <p className="text-sm font-semibold text-[color:var(--ink)]">
+                {result.name}
+              </p>
+              <p className="text-xs text-[color:var(--muted)]">
+                {result.storeName} · {result.locationLabel}
+              </p>
+            </div>
+          </div>
           <p className="mt-2 text-lg font-semibold text-[color:var(--sea)]">
             {result.priceCents !== null
               ? formatCurrency(result.priceCents, result.currency)

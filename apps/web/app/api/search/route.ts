@@ -25,9 +25,10 @@ export async function GET(request: Request) {
 
   const accessToken = await getKrogerAccessToken();
 
-  let locationId = url.searchParams.get("locationId") || process.env.KROGER_LOCATION_ID;
-  let storeName = "Kroger";
-  let locationLabel = "unknown";
+  let locationId =
+    url.searchParams.get("locationId") || process.env.KROGER_LOCATION_ID;
+  let storeName = process.env.KROGER_STORE_NAME || "Kroger";
+  let locationLabel = process.env.KROGER_STORE_LABEL || "unknown";
 
   if (!locationId) {
     const latParam = url.searchParams.get("lat");
@@ -54,6 +55,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "No product found" }, { status: 404 });
   }
 
+  const raw = product.raw as {
+    images?: Array<{ sizes?: Array<{ url?: string }> }>;
+  } | null;
+  const imageUrl = raw?.images?.[0]?.sizes?.[0]?.url ?? null;
+
   return NextResponse.json({
     term,
     locationId,
@@ -63,5 +69,6 @@ export async function GET(request: Request) {
     currency: product.currency,
     unit: product.unit,
     name: product.name,
+    imageUrl,
   });
 }
