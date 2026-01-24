@@ -42,7 +42,7 @@ export async function getKrogerAccessToken() {
     },
     body: new URLSearchParams({
       grant_type: "client_credentials",
-      scope: "product.compact locations.compact",
+      scope: "product.compact",
     }),
     cache: "no-store",
   });

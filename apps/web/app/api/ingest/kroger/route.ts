@@ -57,14 +57,23 @@ export async function POST(request: Request) {
     const lon =
       parsed.data.lon ??
       (process.env.KROGER_LON ? Number(process.env.KROGER_LON) : -84.3963);
-    const location = await findNearestLocation({
-      accessToken: accessToken.access_token,
-      lat,
-      lon,
-    });
-    locationId = location.locationId;
-    storeName = location.name;
-    locationLabel = location.address ?? "nearby";
+    try {
+      const location = await findNearestLocation({
+        accessToken: accessToken.access_token,
+        lat,
+        lon,
+      });
+      locationId = location.locationId;
+      storeName = location.name;
+      locationLabel = location.address ?? "nearby";
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: "Location lookup failed. Set KROGER_LOCATION_ID to continue.",
+        },
+        { status: 400 }
+      );
+    }
   }
 
   const capturedAt = new Date();

@@ -32,6 +32,8 @@ const stapleItems: StapleItem[] = [
 
 const defaultBaseUrl = "https://api-ce.kroger.com/v1";
 
+const createId = () => crypto.randomUUID();
+
 async function getKrogerToken() {
   const clientId = Deno.env.get("KROGER_CLIENT_ID");
   const clientSecret = Deno.env.get("KROGER_CLIENT_SECRET");
@@ -49,12 +51,13 @@ async function getKrogerToken() {
     },
     body: new URLSearchParams({
       grant_type: "client_credentials",
-      scope: "product.compact locations.compact",
+      scope: "product.compact",
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Kroger token failed: ${response.status}`);
+    const details = await response.text();
+    throw new Error(`Kroger token failed: ${response.status} ${details}`);
   }
 
   return (await response.json()) as { access_token: string };
@@ -164,33 +167,59 @@ Deno.serve(async (request) => {
     if (!locationId) {
       const lat = Number(Deno.env.get("KROGER_LAT") ?? 33.7756);
       const lon = Number(Deno.env.get("KROGER_LON") ?? -84.3963);
-      const location = await findNearestLocation(token.access_token, lat, lon);
-      locationId = location.locationId;
-      storeName = location.name;
-      locationLabel = location.address;
+      try {
+        const location = await findNearestLocation(token.access_token, lat, lon);
+        locationId = location.locationId;
+        storeName = location.name;
+        locationLabel = location.address;
+      } catch (error) {
+        throw new Error(
+          "Location lookup failed. Set KROGER_LOCATION_ID to skip locations API."
+        );
+      }
     }
 
     const capturedAt = new Date().toISOString();
+    const url = new URL(request.url);
+    const debug = url.searchParams.get("debug") === "true";
+    const debugRows: Array<{
+      term: string;
+      found: boolean;
+      priced: boolean;
+      priceCents: number | null;
+    }> = [];
     let basketTotal = 0;
     let basketCount = 0;
 
     for (const staple of stapleItems) {
       const product = await fetchProduct(token.access_token, locationId, staple.term);
       if (!product) {
+        if (debug) {
+          debugRows.push({
+            term: staple.term,
+            found: false,
+            priced: false,
+            priceCents: null,
+          });
+        }
         continue;
       }
 
-      const { data: existingItems } = await supabase
+      const { data: existingItems, error: selectError } = await supabase
         .from("Item")
         .select("id")
         .eq("name", staple.label)
         .eq("unit", staple.unit)
         .limit(1);
 
+      if (selectError) {
+        throw new Error(`Item select failed: ${selectError.message}`);
+      }
+
       let itemId: string | null = existingItems?.[0]?.id ?? null;
 
       if (itemId) {
-        await supabase
+        const { error: updateError } = await supabase
           .from("Item")
           .update({
             isTracked: true,
@@ -198,10 +227,14 @@ Deno.serve(async (request) => {
             category: staple.category,
           })
           .eq("id", itemId);
+        if (updateError) {
+          throw new Error(`Item update failed: ${updateError.message}`);
+        }
       } else {
-        const { data: inserted } = await supabase
+        const { data: inserted, error: insertError } = await supabase
           .from("Item")
           .insert({
+            id: createId(),
             name: staple.label,
             category: staple.category,
             unit: staple.unit,
@@ -210,14 +243,40 @@ Deno.serve(async (request) => {
           })
           .select("id")
           .single();
+        if (insertError) {
+          throw new Error(`Item insert failed: ${insertError.message}`);
+        }
         itemId = inserted?.id ?? null;
+
+        if (!itemId) {
+          const { data: fallbackItems, error: fallbackError } = await supabase
+            .from("Item")
+            .select("id")
+            .eq("name", staple.label)
+            .eq("unit", staple.unit)
+            .limit(1);
+          if (fallbackError) {
+            throw new Error(`Item fallback select failed: ${fallbackError.message}`);
+          }
+          itemId = fallbackItems?.[0]?.id ?? null;
+        }
+      }
+
+      if (debug) {
+        debugRows.push({
+          term: staple.term,
+          found: true,
+          priced: product.priceCents !== null,
+          priceCents: product.priceCents,
+        });
       }
 
       if (itemId && product.priceCents !== null) {
         basketTotal += product.priceCents;
         basketCount += 1;
 
-        await supabase.from("PriceSnapshot").insert({
+        const { error: snapshotError } = await supabase.from("PriceSnapshot").insert({
+          id: createId(),
           itemId,
           locationId,
           storeName,
@@ -231,11 +290,15 @@ Deno.serve(async (request) => {
             kroger: product.raw,
           },
         });
+        if (snapshotError) {
+          throw new Error(`PriceSnapshot insert failed: ${snapshotError.message}`);
+        }
       }
     }
 
     if (basketCount > 0) {
-      await supabase.from("CpiBasketSnapshot").insert({
+      const { error: basketError } = await supabase.from("CpiBasketSnapshot").insert({
+        id: createId(),
         capturedAt,
         totalCents: basketTotal,
         currency: "USD",
@@ -243,10 +306,19 @@ Deno.serve(async (request) => {
         storeName,
         source: "kroger",
       });
+      if (basketError) {
+        throw new Error(`Basket snapshot insert failed: ${basketError.message}`);
+      }
     }
 
     return new Response(
-      JSON.stringify({ ok: true, locationId, storeName, basketCount }),
+      JSON.stringify({
+        ok: true,
+        locationId,
+        storeName,
+        basketCount,
+        debug: debug ? debugRows : undefined,
+      }),
       { headers: { "Content-Type": "application/json" } }
     );
   } catch (error) {
