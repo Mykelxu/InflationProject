@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 
   const accessToken = await getKrogerAccessToken();
 
-  let locationId =
+  const locationId =
     url.searchParams.get("locationId") || process.env.KROGER_LOCATION_ID;
   let storeName = process.env.KROGER_STORE_NAME || "Kroger";
   let locationLabel = process.env.KROGER_STORE_LABEL || "unknown";
@@ -43,6 +43,13 @@ export async function GET(request: Request) {
     locationId = location.locationId;
     storeName = location.name;
     locationLabel = location.address ?? "nearby";
+  }
+
+  if (!locationId) {
+    return NextResponse.json(
+      { error: "Missing locationId" },
+      { status: 400 }
+    );
   }
 
   const urlLimit = Number(url.searchParams.get("limit") ?? "5");
