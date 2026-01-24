@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { supabaseRoute } from "@/lib/supabase/route";
 import { prisma } from "@/lib/prisma";
@@ -9,8 +10,8 @@ const basketItemSchema = z.object({
 });
 
 export async function POST(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
   const supabase = await supabaseRoute();
   const {
@@ -21,7 +22,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const basketId = context.params.id;
+  const { id: basketId } = await context.params;
   const body = await request.json();
   const parsed = basketItemSchema.safeParse(body);
 
