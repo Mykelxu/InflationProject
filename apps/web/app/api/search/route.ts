@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 
   const accessToken = await getKrogerAccessToken();
 
-  const locationId =
+  let locationId =
     url.searchParams.get("locationId") || process.env.KROGER_LOCATION_ID;
   let storeName = process.env.KROGER_STORE_NAME || "Kroger";
   let locationLabel = process.env.KROGER_STORE_LABEL || "unknown";
