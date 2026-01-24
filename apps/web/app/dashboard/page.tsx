@@ -65,7 +65,7 @@ export default async function DashboardPage() {
 
   const basketChartData =
     basketSnapshots.length > 0
-      ? basketSnapshots.map((snapshot) => ({
+      ? basketSnapshots.map((snapshot: { capturedAt: Date; totalCents: number }) => ({
           label: snapshot.capturedAt.toLocaleDateString("en-US", {
             month: "short",
             day: "numeric",
