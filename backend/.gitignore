@@ -1,6 +1,0 @@
-
-backend/db.sqlite3
-
-backend/.state_zip_*.json
-
-**/__pycache__/
