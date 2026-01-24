@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import type { CpiBasketSnapshot, Item, PriceSnapshot } from "@prisma/client";
 import { PriceChart } from "@/components/PriceChart";
 import { ItemTrendCard } from "@/components/ItemTrendCard";
 import { PriceSearch } from "@/components/PriceSearch";
@@ -58,37 +59,41 @@ export default async function DashboardPage() {
     orderBy: { createdAt: "desc" },
   });
 
-  const basketSnapshots = await prisma.cpiBasketSnapshot.findMany({
-    orderBy: { capturedAt: "asc" },
-    take: 30,
-  });
+  const basketSnapshots: CpiBasketSnapshot[] =
+    await prisma.cpiBasketSnapshot.findMany({
+      orderBy: { capturedAt: "asc" },
+      take: 30,
+    });
 
   const basketChartData =
     basketSnapshots.length > 0
-      ? basketSnapshots.map((snapshot: { capturedAt: Date; totalCents: number }) => ({
-          label: snapshot.capturedAt.toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          }),
-          price: snapshot.totalCents / 100,
-        }))
+      ? basketSnapshots.map(
+          (snapshot: { capturedAt: Date; totalCents: number }) => ({
+            label: snapshot.capturedAt.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            }),
+            price: snapshot.totalCents / 100,
+          })
+        )
       : fallbackBasket;
 
-  const trackedItems = await prisma.item.findMany({
+  const trackedItems: Item[] = await prisma.item.findMany({
     where: { isTracked: true },
     orderBy: { name: "asc" },
   });
 
   const since = new Date();
   since.setDate(since.getDate() - 30);
-  const trackedSnapshots = await prisma.priceSnapshot.findMany({
-    where: {
-      itemId: { in: trackedItems.map((item) => item.id) },
-      capturedAt: { gte: since },
-    },
-    orderBy: { capturedAt: "asc" },
-    include: { item: true },
-  });
+  const trackedSnapshots: PriceSnapshot[] =
+    await prisma.priceSnapshot.findMany({
+      where: {
+        itemId: { in: trackedItems.map((item: Item) => item.id) },
+        capturedAt: { gte: since },
+      },
+      orderBy: { capturedAt: "asc" },
+      include: { item: true },
+    });
 
   const snapshotsByItem = trackedItems.reduce<Record<string, typeof trackedSnapshots>>(
     (acc, item) => {
@@ -120,7 +125,13 @@ export default async function DashboardPage() {
   for (const item of trackedItems) {
     const series = snapshotsByItem[item.id] ?? [];
     if (series.length === 0) {
-      itemStats.set(item.id, { lastPrice: null, delta7: null, delta30: null });
+      itemStats.set(item.id, {
+        lastPrice: null,
+        delta7: null,
+        delta30: null,
+        minPrice: null,
+        maxPrice: null,
+      });
       continue;
     }
     const last = series[series.length - 1];
@@ -252,7 +263,7 @@ export default async function DashboardPage() {
                       day: "numeric",
                     }),
                     value: snapshot.priceCents / 100,
-                })) ?? [];
+                  })) ?? [];
                 const axis = buildAxis(points.map((point) => point.value));
 
                 return (
