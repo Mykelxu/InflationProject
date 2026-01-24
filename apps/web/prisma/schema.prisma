@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Item {
+  id        String           @id @default(cuid())
+  name      String
+  category  String
+  unit      String
+  isTracked Boolean          @default(false)
+  searchTerm String?
+  createdAt DateTime         @default(now())
+  snapshots PriceSnapshot[]
+  basketItems BasketItem[]
+}
+
+model PriceSnapshot {
+  id         String   @id @default(cuid())
+  itemId     String
+  locationId String
+  storeName  String
+  priceCents Int
+  currency   String
+  capturedAt DateTime @default(now())
+  source     String?
+  rawJson    Json?
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, capturedAt])
+  @@index([locationId, capturedAt])
+}
+
+model Basket {
+  id        String       @id @default(cuid())
+  userId    String?
+  name      String
+  createdAt DateTime     @default(now())
+  items     BasketItem[]
+}
+
+model BasketItem {
+  basketId String
+  itemId   String
+  quantity Int      @default(1)
+  basket   Basket   @relation(fields: [basketId], references: [id], onDelete: Cascade)
+  item     Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([basketId, itemId])
+}
+
+model CpiBasketSnapshot {
+  id         String   @id @default(cuid())
+  capturedAt DateTime @default(now())
+  totalCents Int
+  currency   String
+  locationId String
+  storeName  String
+  source     String?
+
+  @@index([capturedAt])
+  @@index([locationId, capturedAt])
+}
