@@ -100,6 +100,48 @@ export async function findNearestLocation({
   } satisfies KrogerLocation;
 }
 
+export async function getLocationById({
+  accessToken,
+  locationId,
+}: {
+  accessToken: string;
+  locationId: string;
+}) {
+  const url = new URL(`${getBaseUrl()}/locations`);
+  url.searchParams.set("filter.locationId", locationId);
+  url.searchParams.set("filter.limit", "1");
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Kroger locations failed: ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const location = payload?.data?.[0];
+  if (!location) {
+    throw new Error("No Kroger locations returned.");
+  }
+
+  const addressParts = [
+    location.address?.addressLine1,
+    location.address?.city,
+    location.address?.state,
+    location.address?.zipCode,
+  ].filter(Boolean);
+
+  return {
+    locationId: location.locationId,
+    name: location.name || location.description || "Kroger",
+    address: addressParts.join(", "),
+  } satisfies KrogerLocation;
+}
+
 export async function fetchProductForTerm({
   accessToken,
   locationId,

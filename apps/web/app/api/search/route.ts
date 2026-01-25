@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseRoute } from "@/lib/supabase/route";
 import {
   fetchProductForTerm,
+  getLocationById,
   findNearestLocation,
   getKrogerAccessToken,
 } from "@/lib/kroger";
@@ -43,6 +44,19 @@ export async function GET(request: Request) {
     locationId = location.locationId;
     storeName = location.name;
     locationLabel = location.address ?? "nearby";
+  }
+
+  if (locationId && locationLabel === storeName) {
+    try {
+      const location = await getLocationById({
+        accessToken: accessToken.access_token,
+        locationId,
+      });
+      storeName = location.name;
+      locationLabel = location.address || location.name;
+    } catch {
+      // Keep defaults if the lookup fails.
+    }
   }
 
   if (!locationId) {
