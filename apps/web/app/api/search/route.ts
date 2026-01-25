@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   let locationId =
     url.searchParams.get("locationId") || process.env.KROGER_LOCATION_ID;
   let storeName = process.env.KROGER_STORE_NAME || "Kroger";
-  let locationLabel = process.env.KROGER_STORE_LABEL || "unknown";
+  let locationLabel = process.env.KROGER_STORE_LABEL || storeName;
 
   if (!locationId) {
     const latParam = url.searchParams.get("lat");
