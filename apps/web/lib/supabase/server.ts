@@ -9,7 +9,7 @@ export const supabaseServer = async () => {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
     {
       cookies: {
-        get(name) {
+        get(name: string) {
           return cookieStore.get(name)?.value;
         },
         set() {
