@@ -101,12 +101,17 @@ async function findNearestLocation(accessToken: string, lat: number, lon: number
   };
 }
 
-async function fetchProduct(accessToken: string, locationId: string, term: string) {
+async function fetchProduct(
+  accessToken: string,
+  locationId: string,
+  term: string,
+  targetUnit: string
+) {
   const baseUrl = Deno.env.get("KROGER_BASE_URL") ?? defaultBaseUrl;
   const url = new URL(`${baseUrl}/products`);
   url.searchParams.set("filter.term", term);
   url.searchParams.set("filter.locationId", locationId);
-  url.searchParams.set("filter.limit", "1");
+  url.searchParams.set("filter.limit", "10");
 
   const response = await fetch(url, {
     headers: {
@@ -119,35 +124,134 @@ async function fetchProduct(accessToken: string, locationId: string, term: strin
   }
 
   const payload = await response.json();
-  const product = payload?.data?.[0];
-  if (!product) {
+  const products = (payload?.data ?? []) as Array<{
+    description?: string;
+    items?: Array<{
+      size?: string;
+      description?: string;
+      price?: { regular?: number; promo?: number; effective?: number };
+    }>;
+  }>;
+
+  if (products.length === 0) {
     return null;
   }
 
-  const item = product.items?.[0];
+  const pick = selectBestProduct(products, targetUnit);
+  if (!pick) {
+    return null;
+  }
+
   const price =
-    item?.price?.regular ?? item?.price?.promo ?? item?.price?.effective ?? null;
+    pick.item?.price?.regular ??
+    pick.item?.price?.promo ??
+    pick.item?.price?.effective ??
+    null;
   const priceCents = typeof price === "number" ? Math.round(price * 100) : null;
 
   return {
-    name: product.description as string,
-    unit: (item?.size || item?.description || "each") as string,
+    name: pick.product.description as string,
+    unit: (pick.item?.size || pick.item?.description || "each") as string,
     priceCents,
     currency: "USD",
-    raw: product,
+    raw: pick.product,
   };
+}
+
+function parseUnit(input?: string) {
+  if (!input) return null;
+  const text = input.toLowerCase().replace(/,/g, " ").trim();
+  const match = text.match(
+    /(\d+(?:\.\d+)?)\s*(fl\s*oz|oz|ounce|ounces|lb|lbs|pound|pounds|ct|count|gal|gallon|gallons|g|gram|grams|kg|kilogram|kilograms)/
+  );
+  if (!match) return null;
+  const value = Number(match[1]);
+  const unit = match[2].replace(/\s+/g, " ");
+
+  if (Number.isNaN(value)) return null;
+
+  if (unit.startsWith("fl oz")) return { value, type: "volume" as const };
+  if (unit === "gal" || unit === "gallon" || unit === "gallons") {
+    return { value: value * 128, type: "volume" as const };
+  }
+  if (unit === "oz" || unit === "ounce" || unit === "ounces") {
+    return { value, type: "weight" as const };
+  }
+  if (unit === "lb" || unit === "lbs" || unit === "pound" || unit === "pounds") {
+    return { value: value * 16, type: "weight" as const };
+  }
+  if (unit === "g" || unit === "gram" || unit === "grams") {
+    return { value: value * 0.035274, type: "weight" as const };
+  }
+  if (unit === "kg" || unit === "kilogram" || unit === "kilograms") {
+    return { value: value * 35.274, type: "weight" as const };
+  }
+  if (unit === "ct" || unit === "count") {
+    return { value, type: "count" as const };
+  }
+  return null;
+}
+
+function selectBestProduct(
+  products: Array<{
+    description?: string;
+    items?: Array<{
+      size?: string;
+      description?: string;
+      price?: { regular?: number; promo?: number; effective?: number };
+    }>;
+  }>,
+  targetUnit: string
+) {
+  const targetParsed = parseUnit(targetUnit);
+
+  let best:
+    | {
+        product: (typeof products)[number];
+        item: (typeof products)[number]["items"][number];
+        score: number;
+      }
+    | null = null;
+
+  for (const product of products) {
+    for (const item of product.items ?? []) {
+      const sizeText = item.size || item.description || "";
+      const parsed = parseUnit(sizeText);
+      let score = 1e9;
+
+      if (targetParsed && parsed && targetParsed.type === parsed.type) {
+        score = Math.abs(parsed.value - targetParsed.value);
+      } else if (!targetParsed) {
+        score = 0;
+      }
+
+      if (!best || score < best.score) {
+        best = { product, item, score };
+      }
+    }
+  }
+
+  if (!best) {
+    const fallback = products[0];
+    const item = fallback.items?.[0];
+    if (!item) return null;
+    return { product: fallback, item, score: 0 };
+  }
+
+  return best;
 }
 
 async function fetchWithRetry(
   accessToken: string,
   locationId: string,
   term: string,
+  targetUnit: string,
   attempts = 3
 ) {
   let lastError: Error | null = null;
   for (let i = 0; i < attempts; i += 1) {
     try {
-      const product = await fetchProduct(accessToken, locationId, term);
+      const product = await fetchProduct(accessToken, locationId, term, targetUnit);
       return product;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error("Unknown error");
@@ -216,10 +320,12 @@ Deno.serve(async (request) => {
 
     for (const staple of stapleItems) {
       try {
+        currentStapleUnit = staple.unit;
         const product = await fetchWithRetry(
           token.access_token,
           locationId,
-          staple.term
+          staple.term,
+          staple.unit
         );
         if (!product) {
           if (debug) {
