@@ -7,6 +7,17 @@ type StapleItem = {
   unit: string;
 };
 
+type KrogerProductRecord = {
+  productId?: string;
+  brand?: string;
+  description?: string;
+  items?: Array<{
+    size?: string;
+    description?: string;
+    price?: { regular?: number; promo?: number; effective?: number };
+  }>;
+};
+
 const stapleItems: StapleItem[] = [
   { label: "Whole milk", term: "whole milk", category: "Dairy", unit: "1 gal" },
   { label: "Eggs", term: "eggs", category: "Dairy", unit: "12 ct" },
@@ -105,7 +116,11 @@ async function fetchProduct(
   accessToken: string,
   locationId: string,
   term: string,
-  targetUnit: string
+  targetUnit: string,
+  preferred?: {
+    productId?: string | null;
+    brand?: string | null;
+  }
 ) {
   const baseUrl = Deno.env.get("KROGER_BASE_URL") ?? defaultBaseUrl;
   const url = new URL(`${baseUrl}/products`);
@@ -124,20 +139,18 @@ async function fetchProduct(
   }
 
   const payload = await response.json();
-  const products = (payload?.data ?? []) as Array<{
-    description?: string;
-    items?: Array<{
-      size?: string;
-      description?: string;
-      price?: { regular?: number; promo?: number; effective?: number };
-    }>;
-  }>;
+  const products = (payload?.data ?? []) as KrogerProductRecord[];
 
   if (products.length === 0) {
     return null;
   }
 
-  const pick = selectBestProduct(products, targetUnit);
+  const pick = selectBestProduct(
+    products,
+    targetUnit,
+    preferred?.productId ?? null,
+    preferred?.brand ?? null
+  );
   if (!pick) {
     return null;
   }
@@ -155,6 +168,11 @@ async function fetchProduct(
     priceCents,
     currency: "USD",
     raw: pick.product,
+    productId: pick.product.productId ?? null,
+    brand: pick.product.brand ?? null,
+    sizeLabel: (pick.item?.size || pick.item?.description || null) as
+      | string
+      | null,
   };
 }
 
@@ -193,28 +211,45 @@ function parseUnit(input?: string) {
 }
 
 function selectBestProduct(
-  products: Array<{
-    description?: string;
-    items?: Array<{
-      size?: string;
-      description?: string;
-      price?: { regular?: number; promo?: number; effective?: number };
-    }>;
-  }>,
-  targetUnit: string
+  products: KrogerProductRecord[],
+  targetUnit: string,
+  preferredProductId: string | null,
+  preferredBrand: string | null
 ) {
   const targetParsed = parseUnit(targetUnit);
 
   let best:
     | {
-        product: (typeof products)[number];
-        item: (typeof products)[number]["items"][number];
+        product: KrogerProductRecord;
+        item: NonNullable<KrogerProductRecord["items"]>[number];
         score: number;
       }
     | null = null;
 
+  const normalizedPreferredBrand = normalizeBrand(preferredBrand);
+
+  if (preferredProductId) {
+    for (const product of products) {
+      if (product.productId !== preferredProductId) continue;
+      const item = product.items?.find((candidate) => hasPrice(candidate));
+      if (item) {
+        return { product, item, score: 0 };
+      }
+    }
+  }
+
   for (const product of products) {
+    if (
+      normalizedPreferredBrand &&
+      normalizeBrand(product.brand) !== normalizedPreferredBrand
+    ) {
+      continue;
+    }
+
     for (const item of product.items ?? []) {
+      if (!hasPrice(item)) {
+        continue;
+      }
       const sizeText = item.size || item.description || "";
       const parsed = parseUnit(sizeText);
       let score = 1e9;
@@ -232,13 +267,31 @@ function selectBestProduct(
   }
 
   if (!best) {
-    const fallback = products[0];
-    const item = fallback.items?.[0];
-    if (!item) return null;
-    return { product: fallback, item, score: 0 };
+    for (const product of products) {
+      const item = product.items?.find((candidate) => hasPrice(candidate));
+      if (item) {
+        return { product, item, score: 0 };
+      }
+    }
+    return null;
   }
 
   return best;
+}
+
+function normalizeBrand(brand?: string | null) {
+  return brand ? brand.trim().toLowerCase() : null;
+}
+
+function hasPrice(item?: {
+  price?: { regular?: number; promo?: number; effective?: number };
+}) {
+  if (!item?.price) return false;
+  return (
+    typeof item.price.regular === "number" ||
+    typeof item.price.promo === "number" ||
+    typeof item.price.effective === "number"
+  );
 }
 
 async function fetchWithRetry(
@@ -246,12 +299,22 @@ async function fetchWithRetry(
   locationId: string,
   term: string,
   targetUnit: string,
+  preferred?: {
+    productId?: string | null;
+    brand?: string | null;
+  },
   attempts = 3
 ) {
   let lastError: Error | null = null;
   for (let i = 0; i < attempts; i += 1) {
     try {
-      const product = await fetchProduct(accessToken, locationId, term, targetUnit);
+      const product = await fetchProduct(
+        accessToken,
+        locationId,
+        term,
+        targetUnit,
+        preferred
+      );
       return product;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error("Unknown error");
@@ -320,12 +383,31 @@ Deno.serve(async (request) => {
 
     for (const staple of stapleItems) {
       try {
-        currentStapleUnit = staple.unit;
+        const { data: existingItems, error: selectError } = await supabase
+          .from("Item")
+          .select("id, krogerProductId, krogerBrand, krogerSize")
+          .eq("name", staple.label)
+          .eq("unit", staple.unit)
+          .limit(1);
+
+        if (selectError) {
+          throw new Error(`Item select failed: ${selectError.message}`);
+        }
+
+        let itemId: string | null = existingItems?.[0]?.id ?? null;
+        const preferredProductId = existingItems?.[0]?.krogerProductId ?? null;
+        const preferredBrand = existingItems?.[0]?.krogerBrand ?? null;
+        const preferredSize = existingItems?.[0]?.krogerSize ?? null;
+
         const product = await fetchWithRetry(
           token.access_token,
           locationId,
           staple.term,
-          staple.unit
+          staple.unit,
+          {
+            productId: preferredProductId,
+            brand: preferredBrand,
+          }
         );
         if (!product) {
           if (debug) {
@@ -349,26 +431,27 @@ Deno.serve(async (request) => {
           continue;
         }
 
-        const { data: existingItems, error: selectError } = await supabase
-          .from("Item")
-          .select("id")
-          .eq("name", staple.label)
-          .eq("unit", staple.unit)
-          .limit(1);
-
-        if (selectError) {
-          throw new Error(`Item select failed: ${selectError.message}`);
-        }
-
-        let itemId: string | null = existingItems?.[0]?.id ?? null;
-
         if (itemId) {
+          const updateData: Record<string, unknown> = {
+            isTracked: true,
+            searchTerm: staple.term,
+            category: staple.category,
+          };
+
+          if (!preferredProductId && product.productId) {
+            updateData.krogerProductId = product.productId;
+          }
+          if (!preferredBrand && product.brand) {
+            updateData.krogerBrand = product.brand;
+          }
+          if (!preferredSize && product.sizeLabel) {
+            updateData.krogerSize = product.sizeLabel;
+          }
+
           const { error: updateError } = await supabase
             .from("Item")
             .update({
-              isTracked: true,
-              searchTerm: staple.term,
-              category: staple.category,
+              ...updateData,
             })
             .eq("id", itemId);
           if (updateError) {
@@ -384,6 +467,9 @@ Deno.serve(async (request) => {
               unit: staple.unit,
               isTracked: true,
               searchTerm: staple.term,
+              krogerProductId: product.productId,
+              krogerBrand: product.brand,
+              krogerSize: product.sizeLabel,
             })
             .select("id")
             .single();
