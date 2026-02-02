@@ -22,8 +22,6 @@ type ItemTrendCardProps = {
   delta7?: number | null;
   delta30?: number | null;
   yDomain?: [number, number];
-  minPrice?: number | null;
-  maxPrice?: number | null;
   yTicks?: number[];
 };
 
@@ -43,8 +41,6 @@ export function ItemTrendCard({
   delta7,
   delta30,
   yDomain,
-  minPrice,
-  maxPrice,
   yTicks,
 }: ItemTrendCardProps) {
   return (

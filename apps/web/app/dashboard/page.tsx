@@ -169,7 +169,7 @@ export default async function DashboardPage() {
     const paddedSpread = Math.max(1, spread * 1.2);
     const span = Math.max(1, paddedSpread * 2);
     const step = Math.max(1, Math.ceil(span / 4));
-    let domainMin = Math.floor((mid - paddedSpread) / step) * step;
+    const domainMin = Math.floor((mid - paddedSpread) / step) * step;
     let domainMax = Math.ceil((mid + paddedSpread) / step) * step;
     if (domainMax === domainMin) {
       domainMax = domainMin + step;
@@ -275,8 +275,6 @@ export default async function DashboardPage() {
                     lastPrice={itemStats.get(item.id)?.lastPrice ?? null}
                     delta7={itemStats.get(item.id)?.delta7 ?? null}
                     delta30={itemStats.get(item.id)?.delta30 ?? null}
-                    minPrice={itemStats.get(item.id)?.minPrice ?? null}
-                    maxPrice={itemStats.get(item.id)?.maxPrice ?? null}
                     yDomain={axis.domain}
                     yTicks={axis.ticks}
                   />

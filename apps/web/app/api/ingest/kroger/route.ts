@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       storeName = location.name;
       locationLabel = location.address ?? "nearby";
       return runIngest(resolvedLocationId, storeName, locationLabel, accessToken);
-    } catch (error) {
+    } catch {
       return NextResponse.json(
         {
           error: "Location lookup failed. Set KROGER_LOCATION_ID to continue.",

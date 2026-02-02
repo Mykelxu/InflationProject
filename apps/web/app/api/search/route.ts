@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseRoute } from "@/lib/supabase/route";
 import {
-  fetchProductForTerm,
   getLocationById,
   findNearestLocation,
   getKrogerAccessToken,

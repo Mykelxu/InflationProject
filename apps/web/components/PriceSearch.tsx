@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { formatCurrency } from "@/lib/format";
 
 type SearchItem = {
@@ -90,10 +91,13 @@ export function PriceSearch() {
             >
               <div className="flex items-start gap-3">
                 {item.imageUrl && (
-                  <img
+                  <Image
                     src={item.imageUrl}
                     alt={item.name}
+                    width={56}
+                    height={56}
                     className="h-14 w-14 rounded-lg object-cover"
+                    unoptimized
                   />
                 )}
                 <div>
